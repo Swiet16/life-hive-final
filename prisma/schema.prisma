@@ -2,11 +2,15 @@
 // Aligned with the existing Supabase schema (WheelDeelz-style)
 generator client {
   provider = "prisma-client-js"
+  // Supabase pgbouncer mode requires this for Prisma to work
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Used by prisma migrate/db push; falls back to DATABASE_URL if not set
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model User {
