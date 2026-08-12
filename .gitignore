@@ -52,3 +52,14 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Sandbox / dev artifacts
+/upload/
+/tests/
+/.zscripts/
+db/*.db
+db/*.db-journal
+prisma/migrations/dev.db*
+
+# OS files
+Thumbs.db
