@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0a0a0f"/>
+      <stop offset="1" stop-color="#1a1a24"/>
+    </linearGradient>
+  </defs>
+  <!-- Hexagon outer -->
+  <path d="M32 2 L57 16 V48 L32 62 L7 48 V16 Z" fill="url(#g2)" stroke="url(#g1)" stroke-width="2.5"/>
+  <!-- Inner hex cells forming hive pattern -->
+  <path d="M32 14 L44 21 V35 L32 42 L20 35 V21 Z" fill="none" stroke="url(#g1)" stroke-width="1.6" opacity="0.65"/>
+  <path d="M32 24 L38 27.5 V34.5 L32 38 L26 34.5 V27.5 Z" fill="url(#g1)"/>
+  <!-- L monogram -->
+  <path d="M22 22 V42 H32" stroke="#0a0a0f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- H monogram right side -->
+  <path d="M40 22 V42 M40 32 H46" stroke="url(#g1)" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.9"/>
+</svg>

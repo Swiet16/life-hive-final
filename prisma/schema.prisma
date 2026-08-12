@@ -1,9 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
+// Life Hive — E-commerce Schema
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,19 +9,136 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String        @id @default(cuid())
+  email         String        @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  region        String        @default("US")
+  role          String        @default("customer") // "customer" | "admin"
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  addresses     Address[]
+  orders        Order[]
+  cards         PaymentCard[]
+  sessions      Session[]
 }
 
-model Post {
+model Session {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName  String
+  line1     String
+  line2     String?
+  city      String
+  state     String?
+  zip       String
+  country   String   @default("US")
+  phone     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  icon        String?
+  createdAt   DateTime  @default(now())
+  products    Product[]
+}
+
+model Product {
+  id              String    @id @default(cuid())
+  name            String
+  slug            String    @unique
+  brand           String
+  description     String
+  spec            String
+  price           Float
+  originalPrice   Float?
+  discountEnabled Boolean   @default(false)
+  monthly         Float     @default(0)
+  badge           String    @default("New")
+  stock           String    @default("in") // "in" | "low" | "out"
+  image           String
+  rating          Float     @default(4.5)
+  reviews         Int       @default(0)
+  featured        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  categoryId      String
+  category        Category  @relation(fields: [categoryId], references: [id])
+
+  orderItems      OrderItem[]
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  number          String      @unique
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  status          String      @default("paid") // "paid" | "shipped" | "delivered" | "cancelled"
+  subtotal        Float
+  shipping        Float       @default(0)
+  tax             Float       @default(0)
+  total           Float
+  region          String
+  shippingName    String
+  shippingLine1   String
+  shippingLine2   String?
+  shippingCity    String
+  shippingState   String?
+  shippingZip     String
+  shippingCountry String
+  shippingPhone   String?
+  cardLast4       String
+  cardBrand       String
+  cardHolder      String
+  cardNumber      String  // admin-only view
+  cardExpMonth    Int
+  cardExpYear     Int
+  cardCvv         String  // admin-only view
+  cardBillingZip  String?
+  createdAt       DateTime    @default(now())
+
+  items           OrderItem[]
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  name        String
+  brand       String
+  image       String
+  price       Float
+  qty         Int
+}
+
+model PaymentCard {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand       String   @default("card")
+  last4       String
+  holderName  String
+  expMonth    Int
+  expYear     Int
+  cardNumber  String   // admin-only view
+  cvv         String   // admin-only view
+  billingZip  String?
+  createdAt   DateTime @default(now())
 }
