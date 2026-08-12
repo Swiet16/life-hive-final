@@ -1,4 +1,5 @@
 // Life Hive — E-commerce Schema
+// Aligned with the existing Supabase schema (WheelDeelz-style)
 generator client {
   provider = "prisma-client-js"
 }
@@ -50,37 +51,54 @@ model Address {
   createdAt DateTime @default(now())
 }
 
-model Category {
-  id          String    @id @default(cuid())
-  slug        String    @unique
-  name        String
-  icon        String?
-  createdAt   DateTime  @default(now())
-  products    Product[]
+// Products — aligned with the existing Supabase `products` table.
+// No separate categories table: `category` is plain text.
+// `images` is jsonb array of URLs, `specs` is jsonb object of spec key/values.
+model Product {
+  id               String    @id @default(cuid())
+  name             String
+  brand            String
+  spec             String    @default("")
+  category         String    @default("tires") // text: "tires" | "wheels" | "electronics" | "fashion" | etc.
+  price            Float
+  originalPrice    Float?
+  discountEnabled  Boolean   @default(false)
+  monthly          Int       @default(0)
+  badge            String    @default("Featured")
+  stock            String    @default("in") // "in" | "low" | "out"
+  imageUrl         String?   // main image
+  featured         Boolean   @default(false)
+  sortOrder        Int       @default(0)
+  description      String    @default("")
+  longDescription  String    @default("")
+  images           Json      @default("[]") // jsonb array
+  specs            Json      @default("{}") // jsonb object
+  sku              String?
+  weightLbs        Float?
+  rating           Float     @default(4.5)
+  reviews          Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  orderItems       OrderItem[]
+
+  @@map("products")
 }
 
-model Product {
-  id              String    @id @default(cuid())
-  name            String
-  slug            String    @unique
-  brand           String
-  description     String
-  spec            String
-  price           Float
-  originalPrice   Float?
-  discountEnabled Boolean   @default(false)
-  monthly         Float     @default(0)
-  badge           String    @default("New")
-  stock           String    @default("in") // "in" | "low" | "out"
-  image           String
-  rating          Float     @default(4.5)
-  reviews         Int       @default(0)
-  featured        Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  categoryId      String
-  category        Category  @relation(fields: [categoryId], references: [id])
+// Hero slides — also matches the existing Supabase `hero_images` table.
+model HeroImage {
+  id          String   @id @default(cuid())
+  title       String
+  headline    String
+  subheadline String
+  ctaLabel    String
+  ctaHref     String
+  imageUrl    String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
 
-  orderItems      OrderItem[]
+  @@map("hero_images")
 }
 
 model Order {

@@ -132,7 +132,7 @@ export async function POST(req: Request) {
             productId: it.id,
             name: it.name,
             brand: it.brand,
-            image: it.image ?? null,
+            image: it.image ?? "",
             price: productMap.get(it.id)?.price ?? it.price,
             qty: it.qty,
           })),

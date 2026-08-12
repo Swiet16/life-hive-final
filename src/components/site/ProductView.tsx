@@ -10,6 +10,14 @@ import { toast } from "sonner";
 import { ProductCard } from "./ProductCard";
 import type { Product } from "./ProductCard";
 
+function primaryImage(p: Product | null): string {
+  if (!p) return "";
+  if (p.imageUrl) return p.imageUrl;
+  if (p.image) return p.image;
+  if (Array.isArray(p.images) && p.images.length > 0) return p.images[0];
+  return "https://images.unsplash.com/photo-1606577924006-27d39b132ae2?auto=format&fit=crop&w=800&q=80";
+}
+
 export function ProductView({ id }: { id: string }) {
   const navigate = useUI((s) => s.navigate);
   const { add } = useCart();
@@ -75,7 +83,7 @@ export function ProductView({ id }: { id: string }) {
         brand: product.brand,
         name: product.name,
         price: product.price,
-        image: product.image,
+        image: primaryImage(product),
       });
     }
     toast.success(`${product.brand} ${product.name} × ${qty} added to cart`);
@@ -109,7 +117,7 @@ export function ProductView({ id }: { id: string }) {
         {/* Image */}
         <div className="relative aspect-square bg-card border border-border rounded-2xl overflow-hidden">
           <img
-            src={product.image || ""}
+            src={primaryImage(product)}
             alt={product.name}
             className="w-full h-full object-cover"
           />
@@ -165,7 +173,7 @@ export function ProductView({ id }: { id: string }) {
           </div>
 
           <p className="text-sm text-foreground/80 mt-5 leading-relaxed">
-            {product.description}
+            {product.longDescription || product.description}
           </p>
 
           {/* Stock */}

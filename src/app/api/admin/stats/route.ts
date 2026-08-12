@@ -42,14 +42,14 @@ export async function GET() {
   }
   const revenueSeries = Array.from(dayMap.entries()).map(([date, value]) => ({ date, value }));
 
-  // Top categories
+  // Top categories — `category` is now plain text on the product row
   const orders = await db.order.findMany({
-    include: { items: { include: { product: { include: { category: true } } } } },
+    include: { items: { include: { product: true } } },
   });
   const catMap = new Map<string, number>();
   for (const o of orders) {
     for (const it of o.items) {
-      const catName = it.product?.category?.name ?? "Other";
+      const catName = it.product?.category ?? "Other";
       catMap.set(catName, (catMap.get(catName) ?? 0) + it.price * it.qty);
     }
   }

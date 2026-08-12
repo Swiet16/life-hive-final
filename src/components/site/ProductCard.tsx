@@ -17,9 +17,22 @@ export interface Product {
   monthly: number;
   badge: string;
   stock: "in" | "low" | "out";
+  // Support both `image` (legacy) and `imageUrl` (current Supabase schema)
   image?: string | null;
+  imageUrl?: string | null;
+  images?: string[] | null;
   rating?: number;
   reviews?: number;
+  category?: string;
+  description?: string;
+  longDescription?: string;
+}
+
+function primaryImage(p: Product): string {
+  if (p.imageUrl) return p.imageUrl;
+  if (p.image) return p.image;
+  if (Array.isArray(p.images) && p.images.length > 0) return p.images[0];
+  return "https://images.unsplash.com/photo-1606577924006-27d39b132ae2?auto=format&fit=crop&w=800&q=80";
 }
 
 export function ProductCard({ p }: { p: Product }) {
@@ -49,7 +62,7 @@ export function ProductCard({ p }: { p: Product }) {
       brand: p.brand,
       name: p.name,
       price: p.price,
-      image: p.image,
+      image: primaryImage(p),
     });
     toast.success(`${p.brand} ${p.name} added to cart`, {
       description: `$${p.price.toFixed(2)} — tap cart to checkout`,
@@ -67,7 +80,7 @@ export function ProductCard({ p }: { p: Product }) {
         className="block relative aspect-square bg-onyx overflow-hidden"
       >
         <img
-          src={p.image || "https://images.unsplash.com/photo-1606577924006-27d39b132ae2?auto=format&fit=crop&w=800&q=80"}
+          src={primaryImage(p)}
           alt={`${p.brand} ${p.name}`}
           loading="lazy"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
